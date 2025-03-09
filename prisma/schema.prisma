@@ -1,0 +1,1614 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model aljex_carrier_map {
+  aljex_account_number String  @id @db.VarChar(20)
+  mc                   String  @db.VarChar(20)
+  active               Boolean @default(true)
+}
+
+model aljex_message_hist {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  message_type String   @db.VarChar(255)
+  message_id   String   @db.VarChar(255)
+  message      Json     @db.Json
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([message_type], map: "aljex_message_hist_message_type_index")
+  @@index([message_type, message_id], map: "aljex_message_hist_message_type_message_id_index")
+}
+
+model api_keys {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String   @db.Uuid
+  token      String   @default(dbgenerated("gen_random_token()"))
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "api_keys_user_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model auto_post_schedule_items {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  days         String[] @db.VarChar
+  hours        Int[]
+  start_offset Int      @default(0)
+  end_offset   Int      @default(0)
+  type         String   @default("EMAIL")
+  action       String   @default("POST")
+  active       Boolean  @default(true)
+
+  @@unique([days, hours, start_offset, end_offset, type, action], map: "enforce_unique_rows_in_auto_post_schedule")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model bids {
+  id                  String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id             String                @db.Uuid
+  carrier_id          String                @db.Uuid
+  status              String?
+  ask_price           Decimal?              @db.Decimal(12, 2)
+  note                String?
+  user_id             String?               @db.Uuid
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  phone               String?               @db.VarChar(50)
+  actual_bid_id       String?               @db.Uuid
+  void                Boolean?              @default(false)
+  bids                bids?                 @relation("bidsTobids", fields: [actual_bid_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "bids_actual_bid_id_foreign")
+  other_bids          bids[]                @relation("bidsTobids")
+  carriers            carriers              @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "bids_carrier_id_foreign")
+  loads               loads                 @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "bids_load_id_foreign")
+  users               users?                @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "bids_user_id_foreign")
+  bids_email_response bids_email_response[]
+
+  @@index([carrier_id], map: "bids_carrier_id_index")
+  @@index([load_id], map: "bids_load_id_index")
+}
+
+model bids_email_response {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  bid_id     String   @db.Uuid
+  html       String?
+  text       String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  bids       bids     @relation(fields: [bid_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "bids_email_response_bid_id_foreign")
+}
+
+model bounced_loads {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id        String   @db.Uuid
+  carrier_id     String   @db.Uuid
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+  carrier_rep_id String?  @db.Uuid
+  carriers       carriers @relation(fields: [carrier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "bounced_loads_carrier_id_foreign")
+  users          users?   @relation(fields: [carrier_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "bounced_loads_carrier_rep_id_foreign")
+  loads          loads    @relation(fields: [load_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "bounced_loads_load_id_foreign")
+
+  @@index([carrier_id], map: "bounced_loads_carrier_id_index")
+  @@index([carrier_rep_id], map: "bounced_loads_carrier_rep_id_index")
+  @@index([load_id], map: "bounced_loads_load_id_index")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model calls {
+  id                    String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id               String?   @db.Uuid
+  internal_phone_number String?   @db.VarChar(255)
+  external_phone_number String?   @db.VarChar(255)
+  direction             String?
+  recording_url         String?   @db.VarChar(1000)
+  call_begin            DateTime? @db.Timestamptz(6)
+  call_answer           DateTime? @db.Timestamptz(6)
+  call_end              DateTime? @db.Timestamptz(6)
+  portal_user_id        Int?
+  portal_originator_id  Int?
+  plivo_call_uuid       String?   @db.VarChar(255)
+  plivo_parent_uuid     String?   @db.VarChar(255)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+  duration              Int?      @default(0)
+  call_date             DateTime? @db.Date
+
+  @@index([call_date, user_id, call_answer, call_end], map: "calls_call_date_user_id_call_answer_call_end_index")
+  @@index([call_date, user_id, direction, duration], map: "calls_call_date_user_id_direction_duration_index")
+  @@index([user_id], map: "calls_user_id_index")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model carrier_contacts {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  carrier_id   String   @db.Uuid
+  contact_type String?  @default("EMPLOYEE")
+  title        String?  @db.VarChar(50)
+  name         String?  @db.VarChar(100)
+  phone        String?  @db.VarChar(50)
+  extension    String?  @db.VarChar(20)
+  cell_phone   String?  @db.VarChar(50)
+  fax          String?  @db.VarChar(50)
+  notes        String?  @db.VarChar(255)
+  email        String?  @db.VarChar(100)
+  active       Boolean? @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  carriers     carriers @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carrier_contacts_carrier_id_foreign")
+  loads        loads[]
+
+  @@index([carrier_id], map: "carrier_contacts_carrier_id_index")
+}
+
+model carrier_fleet_trucks {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  carrier_id  String   @db.Uuid
+  truck_type  String   @db.VarChar(255)
+  truck_count Int
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  carriers    carriers @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carrier_fleet_trucks_carrier_id_foreign")
+}
+
+model carrier_insurance_details {
+  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  carrier_id     String    @db.Uuid
+  insurance_type String    @db.VarChar(255)
+  company_name   String?   @db.VarChar(255)
+  policy_number  String?   @db.VarChar(255)
+  amount         Decimal?  @db.Decimal(15, 2)
+  deductable     Decimal?  @db.Decimal(15, 2)
+  expires_on     DateTime? @db.Date
+  carriers       carriers  @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carrier_insurance_details_carrier_id_foreign")
+
+  @@index([carrier_id, insurance_type], map: "carrier_insurance_details_carrier_id_insurance_type_index")
+}
+
+model carrier_locations {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  carrier_id    String    @db.Uuid
+  location_id   String    @db.Uuid
+  location_type String?   @db.VarChar(255)
+  carriers      carriers  @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carrier_locations_carrier_id_foreign")
+  locations     locations @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carrier_locations_location_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model carrier_notes {
+  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  carrier_id     String    @db.Uuid
+  user_id        String    @db.Uuid
+  rating         Int?
+  note           String
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  note_date      DateTime? @default(now()) @db.Date
+  portal_note_id Int?
+  note_type      String    @default("GENERAL")
+  carriers       carriers  @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carrier_notes_carrier_id_foreign")
+  users          users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "carrier_notes_user_id_foreign")
+
+  @@index([carrier_id], map: "carrier_notes_carrier_id_index")
+}
+
+model carrier_rep_assignment_tags {
+  id                        String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  key                       String  @db.VarChar(32)
+  display_name              String  @db.VarChar(32)
+  user_id                   String  @db.Uuid
+  carrier_rep_assignment_id String? @db.Uuid
+  users                     users   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "carrier_rep_assignment_tags_user_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model carrier_rep_assignments {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  carrier_id       String?   @db.Uuid
+  user_id          String?   @db.Uuid
+  assignment_type  String?
+  streak           Int?
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  actual_timestamp DateTime? @default(now()) @db.Timestamptz(6)
+  carriers         carriers? @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carrier_rep_assignments_carrier_id_foreign")
+  users            users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "carrier_rep_assignments_user_id_foreign")
+
+  @@index([carrier_id], map: "carrier_rep_assignments_carrier_id_index")
+}
+
+model check_calls {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id         String?   @db.Uuid
+  call_date       DateTime? @db.Date
+  call_time       String?   @db.VarChar(10)
+  location        String?   @db.VarChar(255)
+  state           String?   @db.VarChar(2)
+  status          String?   @db.VarChar(255)
+  notes           String?   @db.VarChar(1000)
+  aljex_user_name String?   @db.VarChar(255)
+  loads           loads?    @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "check_calls_load_id_foreign")
+
+  @@index([call_date], map: "check_calls_call_date_index")
+  @@index([load_id], map: "check_calls_load_id_index")
+}
+
+model config_params {
+  id    String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name  String  @db.VarChar(32)
+  value String? @db.VarChar(128)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model customer_contacts {
+  id                  String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_id         String?    @db.Uuid
+  contact_type        String?
+  title               String?    @db.VarChar(255)
+  name                String?    @db.VarChar(255)
+  phone               String?    @db.VarChar(255)
+  extension           String?    @db.VarChar(255)
+  cell_phone          String?    @db.VarChar(255)
+  fax                 String?    @db.VarChar(255)
+  notes               String?    @db.VarChar(255)
+  email               String?    @db.VarChar(255)
+  active              Boolean?
+  created_at          DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime   @default(now()) @db.Timestamptz(6)
+  aljex_contact_index Int?
+  customers           customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_contacts_customer_id_foreign")
+}
+
+model customer_locations {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  location_id   String    @db.Uuid
+  customer_id   String    @db.Uuid
+  location_type String?   @db.VarChar(255)
+  customers     customers @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_locations_customer_id_foreign")
+  locations     locations @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_locations_location_id_foreign")
+}
+
+model customer_lumpers {
+  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_id  String?    @db.Uuid
+  load_number  String?    @db.VarChar(255)
+  lumper_type  String?    @db.VarChar(255)
+  amount       Float?
+  pallet_count Int?
+  in_time      String?    @db.VarChar(255)
+  out_time     String?    @db.VarChar(255)
+  customers    customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_lumpers_customer_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model customer_notes {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_id String    @db.Uuid
+  user_id     String    @db.Uuid
+  rating      Int?
+  note        String
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  note_type   String    @default("GENERAL")
+  note_date   DateTime? @default(now()) @db.Date
+  customers   customers @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_notes_customer_id_foreign")
+  users       users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customer_notes_user_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model customer_rep_assignments {
+  id                            String                          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_id                   String?                         @db.Uuid
+  user_id                       String?                         @db.Uuid
+  assignment_type               String?
+  streak                        Int?
+  created_at                    DateTime                        @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime                        @default(now()) @db.Timestamptz(6)
+  customers                     customers?                      @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_rep_assignments_customer_id_foreign")
+  users                         users?                          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_rep_assignments_user_id_foreign")
+  customer_rep_assignments_tags customer_rep_assignments_tags[]
+}
+
+model customer_rep_assignments_tags {
+  id                         String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  key                        String?                   @db.VarChar(255)
+  display_name               String?                   @db.VarChar(255)
+  user_id                    String?                   @db.Uuid
+  customer_rep_assignment_id String?                   @db.Uuid
+  customer_rep_assignments   customer_rep_assignments? @relation(fields: [customer_rep_assignment_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_rep_assignments_tags_customer_rep_assignment_id_foreig")
+  users                      users?                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_rep_assignments_tags_user_id_foreign")
+}
+
+model customer_restricted_carrier {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_id String    @db.Uuid
+  carrier_id  String    @db.Uuid
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  carriers    carriers  @relation(fields: [carrier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customer_restricted_carrier_carrier_id_foreign")
+  customers   customers @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customer_restricted_carrier_customer_id_foreign")
+
+  @@unique([customer_id, carrier_id], map: "crc_cust_car_idx")
+}
+
+model customer_shipping {
+  id                    String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_id           String?    @db.Uuid
+  shipping_contact      String?    @db.VarChar(255)
+  shipping_number       String?    @db.VarChar(255)
+  shipping_hours        String?    @db.VarChar(255)
+  receiving_hours       String?    @db.VarChar(255)
+  appointments_required Boolean?
+  tms                   String?    @db.VarChar(255)
+  lumper                Boolean?
+  drop_trailer_required Boolean?
+  drop_trailer_allowed  Boolean?
+  created_at            DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime   @default(now()) @db.Timestamptz(6)
+  customers             customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_shipping_customer_id_foreign")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model dale_bounced_loads {
+  id         String?   @db.Uuid
+  load_id    String?   @db.Uuid
+  carrier_id String?   @db.Uuid
+  created_at DateTime? @db.Timestamptz(6)
+  updated_at DateTime? @db.Timestamptz(6)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model dale_check_calls {
+  id                 String?   @db.Uuid
+  load_id            String?   @db.Uuid
+  call_date          DateTime? @db.Date
+  call_time          String?   @db.VarChar(10)
+  location           String?   @db.VarChar(255)
+  state              String?   @db.VarChar(2)
+  status             String?   @db.VarChar(255)
+  user_id            String?   @db.Uuid
+  notes              String?   @db.VarChar(1000)
+  aljex_checkcall_id Decimal?  @db.Decimal(12, 0)
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model dale_score {
+  id              String?   @db.Uuid
+  load_id         String?   @db.Uuid
+  score           Decimal?  @db.Decimal(6, 3)
+  score_breakdown Json?     @db.Json
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+
+  @@ignore
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model driver_notes {
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  carrier_contact_id String   @db.Uuid
+  notes              String
+  rating             Int?
+  shipper_org_id     String?  @db.Uuid
+  user_id            String?  @db.Uuid
+  user_email         String   @db.VarChar(100)
+  user_name          String   @db.VarChar(100)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([carrier_contact_id], map: "driver_notes_carrier_contact_id_index")
+  @@index([carrier_contact_id, shipper_org_id], map: "driver_notes_carrier_contact_id_shipper_org_id_index")
+  @@index([carrier_contact_id, user_id], map: "driver_notes_carrier_contact_id_user_id_index")
+  @@index([shipper_org_id], map: "driver_notes_shipper_org_id_index")
+  @@index([user_id], map: "driver_notes_user_id_index")
+}
+
+model equipment_groups {
+  id                         String                       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                       String                       @unique(map: "equipment_groups_name_unique") @db.VarChar(30)
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  equipment_types            equipment_types[]
+  external_loads             external_loads[]
+  region_carrier_truck_stats region_carrier_truck_stats[]
+  region_truck_stats         region_truck_stats[]
+}
+
+model equipment_types {
+  id                  String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                String           @unique(map: "equipment_types_name_unique") @db.VarChar(30)
+  equipment_group_id  String           @db.Uuid
+  description         String           @db.VarChar(255)
+  created_at          DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime         @default(now()) @db.Timestamptz(6)
+  active              Boolean          @default(true)
+  dat_equipment_group String?          @db.VarChar(255)
+  ts_equipment_type   Int?
+  ts_equipment_option Int?
+  equipment_groups    equipment_groups @relation(fields: [equipment_group_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "equipment_types_equipment_group_id_foreign")
+  loads               loads[]
+  trucks              trucks[]
+}
+
+model gearjammer_nav_links {
+  id         String   @id(map: "gearjammer_external_links_pkey") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  link_text  String   @db.VarChar(255)
+  link_url   String   @db.VarChar(1000)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  is_active  Boolean? @default(true)
+  type       String?  @default("internal") @db.VarChar(255)
+}
+
+model google_places_known_regions {
+  id     String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  region String @db.VarChar(255)
+}
+
+model knex_migrations {
+  id             Int       @id @default(autoincrement())
+  name           String?   @db.VarChar(255)
+  batch          Int?
+  migration_time DateTime? @db.Timestamptz(6)
+}
+
+model knex_migrations_lock {
+  index     Int  @id @default(autoincrement())
+  is_locked Int?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model late_load_notes {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id    String   @db.Uuid
+  stop_order Int
+  blame      String?
+  reason     String?
+  user_id    String?  @db.Uuid
+  notes      String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  loads      loads    @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "late_load_notes_load_id_foreign")
+  users      users?   @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "late_load_notes_user_id_foreign")
+}
+
+model load_config {
+  id                  String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id             String? @db.Uuid
+  truck_search_radius Int?
+  age_limit_minutes   Int?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model load_history {
+  id                                       String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  actual_timestamp                         DateTime? @default(now()) @db.Timestamptz(6)
+  load_id                                  String?   @db.Uuid
+  carrier_id                               String?   @db.Uuid
+  carrier_rep_id                           String?   @db.Uuid
+  booking_rep_id                           String?   @db.Uuid
+  created_at                               DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                               DateTime  @default(now()) @db.Timestamptz(6)
+  moved_to                                 String?
+  users_load_history_booking_rep_idTousers users?    @relation("load_history_booking_rep_idTousers", fields: [booking_rep_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_history_booking_rep_id_foreign")
+  carriers                                 carriers? @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_history_carrier_id_foreign")
+  users_load_history_carrier_rep_idTousers users?    @relation("load_history_carrier_rep_idTousers", fields: [carrier_rep_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_history_carrier_rep_id_foreign")
+  loads                                    loads?    @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_history_load_id_foreign")
+}
+
+model load_history_complete {
+  id                                                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  actual_timestamp                                  DateTime? @default(now()) @db.Timestamptz(6)
+  load_id                                           String?   @db.Uuid
+  carrier_id                                        String?   @db.Uuid
+  carrier_rep_id                                    String?   @db.Uuid
+  booking_rep_id                                    String?   @db.Uuid
+  created_at                                        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                                        DateTime  @default(now()) @db.Timestamptz(6)
+  prev_status                                       String?   @db.VarChar(16)
+  status                                            String?   @db.VarChar(16)
+  users_load_history_complete_booking_rep_idTousers users?    @relation("load_history_complete_booking_rep_idTousers", fields: [booking_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "load_history_complete_booking_rep_id_foreign")
+  carriers                                          carriers? @relation(fields: [carrier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "load_history_complete_carrier_id_foreign")
+  users_load_history_complete_carrier_rep_idTousers users?    @relation("load_history_complete_carrier_rep_idTousers", fields: [carrier_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "load_history_complete_carrier_rep_id_foreign")
+  loads                                             loads?    @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_history_complete_load_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model load_posts {
+  id                        String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  ref_id                    String?                   @unique(map: "load_posts_ref_id_unique") @default(dbgenerated("random_ref_id()")) @db.VarChar(255)
+  load_id                   String                    @db.Uuid
+  origin_city               String                    @db.VarChar(255)
+  origin_state              String                    @db.VarChar(255)
+  destination_city          String                    @db.VarChar(255)
+  destination_state         String                    @db.VarChar(255)
+  comments                  String?                   @db.VarChar(255)
+  posted_rate               Decimal?                  @db.Decimal(12, 2)
+  dat_asset_id              String?                   @db.VarChar(255)
+  created_at                DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                  @default(now()) @db.Timestamptz(6)
+  post_date                 DateTime?                 @db.Date
+  custom_rate               Boolean?                  @default(false)
+  custom_comments           Boolean?                  @default(false)
+  custom_origin             Boolean?                  @default(false)
+  custom_destination        Boolean?                  @default(false)
+  custom_post_date          Boolean?                  @default(false)
+  dat_equipment_type        String?                   @db.VarChar(255)
+  weight                    Int?                      @default(42000)
+  length                    Int?                      @default(53)
+  custom_dat_equipment_type Boolean?
+  custom_weight             Boolean?
+  custom_length             Boolean?
+  truckstop_asset_id        String?                   @db.Uuid
+  truckstop_error           String?                   @db.VarChar(255)
+  dat_error                 String?                   @db.VarChar(255)
+  post_type                 String?                   @default("EMAIL")
+  loads                     loads                     @relation(fields: [load_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "load_posts_load_id_foreign")
+  query_counter_load_post   query_counter_load_post[]
+
+  @@index([load_id], map: "load_posts_load_id_index")
+}
+
+model load_posts_history {
+  id                              String                            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  ref_id                          String                            @db.VarChar(255)
+  load_id                         String                            @db.Uuid
+  dat_asset_id                    String?                           @db.VarChar(255)
+  origin_city                     String                            @db.VarChar(255)
+  origin_state                    String                            @db.VarChar(255)
+  destination_city                String                            @db.VarChar(255)
+  destination_state               String                            @db.VarChar(255)
+  comments                        String?                           @db.VarChar(255)
+  posted_rate                     Decimal?                          @db.Decimal(12, 2)
+  dat_equipment_type              String?                           @db.VarChar(255)
+  weight                          Int?
+  length                          Int?
+  posted_at                       DateTime?                         @default(now()) @db.Timestamptz(6)
+  deleted_at                      DateTime?                         @db.Timestamptz(6)
+  loads                           loads                             @relation(fields: [load_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "load_posts_history_load_id_foreign")
+  query_counter_load_post_history query_counter_load_post_history[]
+
+  @@index([load_id], map: "load_posts_history_load_id_index")
+  @@index([ref_id], map: "load_posts_history_ref_id_index")
+}
+
+model load_quality_threshold {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id    String   @unique(map: "load_quality_threshold_load_id_unique") @db.Uuid
+  pro        String   @db.VarChar(8)
+  src        String   @db.VarChar(8)
+  base_rate  Decimal  @db.Decimal(8, 2)
+  min_rate   Decimal  @db.Decimal(8, 2)
+  max_rate   Decimal  @db.Decimal(8, 2)
+  percentage Decimal  @db.Decimal(8, 2)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  loads      loads    @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_quality_threshold_load_id_foreign")
+}
+
+model load_rates {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id               String   @unique(map: "load_rates_load_id_unique") @db.Uuid
+  equipment_group       String?  @db.VarChar(10)
+  miles                 Int?
+  fuel_rate             Decimal? @db.Decimal(12, 2)
+  contributors          Int?
+  moves                 Int?
+  days_back             Int?
+  origin_geography      String?  @db.VarChar(255)
+  destination_geography String?  @db.VarChar(255)
+  estimated_lh_total    Decimal? @db.Decimal(12, 2)
+  low_lh_total          Decimal? @db.Decimal(12, 2)
+  high_lh_total         Decimal? @db.Decimal(12, 2)
+  confidence_level      Int?
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  loads                 loads    @relation(fields: [load_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "load_rates_load_id_foreign")
+}
+
+model load_service_scorecards {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id         String   @db.Uuid
+  score           Decimal  @db.Decimal(6, 3)
+  score_breakdown Json?    @db.Json
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  loads           loads    @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_service_scorecards_load_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model load_tracking {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id       String    @unique(map: "load_tracking_load_id_unique") @db.Uuid
+  tracking_type String?   @default("LOGISTIMATICS")
+  device_id     String    @db.VarChar(100)
+  start_time    DateTime  @db.Timestamptz(6)
+  end_time      DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  loads         loads     @relation(fields: [load_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "load_tracking_load_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model load_truck_matches {
+  id                   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id              String   @db.Uuid
+  truck_id             String   @db.Uuid
+  carrier_id           String   @db.Uuid
+  score                Decimal  @db.Decimal(10, 6)
+  match_description    String?
+  deadhead             Decimal? @db.Decimal(10, 2)
+  destination_deadhead Decimal? @db.Decimal(10, 2)
+  match_triggered_by   String   @default("unknown")
+  matched_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([load_id, truck_id], map: "ltm_load_truck_idx")
+  @@index([carrier_id], map: "load_truck_matches_carrier_id_index")
+  @@index([load_id], map: "load_truck_matches_load_id_index")
+  @@index([truck_id], map: "load_truck_matches_truck_id_index")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model load_truck_matches_old {
+  load_id              String   @db.Uuid
+  truck_id             String   @db.Uuid
+  score                Decimal  @db.Decimal(10, 6)
+  match_description    String?
+  matched_at           DateTime @default(now()) @db.Timestamptz(6)
+  deadhead             Decimal? @db.Decimal(10, 2)
+  destination_deadhead Decimal? @db.Decimal(10, 2)
+  loads                loads    @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_truck_matches_load_id_foreign")
+  trucks               trucks   @relation(fields: [truck_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_truck_matches_truck_id_foreign")
+
+  @@unique([load_id, truck_id], map: "load_truck_matches_load_id_truck_id_unique")
+}
+
+model loads_post {
+  id                String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pro               String? @db.VarChar(255)
+  origin_city       String? @db.VarChar(255)
+  origin_state      String? @db.VarChar(255)
+  destination_city  String? @db.VarChar(255)
+  destination_state String? @db.VarChar(255)
+  origin_lat        Float?
+  origin_lng        Float?
+  destination_lat   Float?
+  destination_lng   Float?
+  equipment         String? @db.VarChar(255)
+  spend             String? @db.VarChar(255)
+  description       String? @db.VarChar(255)
+  pieces            String? @db.VarChar(255)
+  customer_rate     String? @db.VarChar(255)
+  weight            String? @db.VarChar(255)
+  temperature       String? @db.VarChar(255)
+  notes             String? @db.VarChar(255)
+  status            String? @db.VarChar(255)
+}
+
+model loads_post1 {
+  id                String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pro               String? @db.VarChar(255)
+  origin_city       String? @db.VarChar(255)
+  origin_state      String? @db.VarChar(255)
+  destination_city  String? @db.VarChar(255)
+  destination_state String? @db.VarChar(255)
+  origin_lat        Float?
+  origin_lng        Float?
+  destination_lat   Float?
+  destination_lng   Float?
+  equipment         String? @db.VarChar(255)
+  spend             String? @db.VarChar(255)
+  description       String? @db.VarChar(255)
+  pieces            String? @db.VarChar(255)
+  customer_rate     String? @db.VarChar(255)
+  weight            String? @db.VarChar(255)
+  temperature       String? @db.VarChar(255)
+  notes             String? @db.VarChar(255)
+  status            String? @db.VarChar(255)
+}
+
+model migrations {
+  id     Int      @id @default(autoincrement())
+  name   String   @db.VarChar(255)
+  run_on DateTime @db.Timestamp(6)
+}
+
+model notes {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  note       String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  user_id    String   @db.Uuid
+  users      users    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "notes_user_id_foreign")
+}
+
+model notification_events {
+  id            String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  type          String?         @default("general") @db.VarChar(255)
+  title         String?         @db.VarChar(255)
+  text          String          @db.VarChar(255)
+  load_id       String?         @db.Uuid
+  truck_id      String?         @db.Uuid
+  carrier_id    String?         @db.Uuid
+  mc            String?         @db.VarChar(255)
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  truck_ref     String?         @db.VarChar(12)
+  notifications notifications[]
+}
+
+model notifications {
+  id                    String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  recipient_id          String              @db.Uuid
+  notification_event_id String              @db.Uuid
+  delivered             Boolean?            @default(false)
+  read                  Boolean?            @default(false)
+  created_at            DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime            @default(now()) @db.Timestamptz(6)
+  notification_events   notification_events @relation(fields: [notification_event_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "notifications_notification_event_id_foreign")
+  users                 users               @relation(fields: [recipient_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "notifications_recipient_id_foreign")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model old_laod_service_scorecards {
+  id              String?   @db.Uuid
+  load_id         String?   @db.Uuid
+  score           Decimal?  @db.Decimal(6, 3)
+  score_breakdown Json?     @db.Json
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+
+  @@ignore
+}
+
+model payments {
+  id                      String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  payment_id              String?   @db.VarChar(255)
+  pro                     String?   @db.VarChar(255)
+  carrier_account         Int?      @default(0)
+  carrier_invoice         String?   @db.VarChar(255)
+  pickup_date             DateTime? @db.Date
+  pickup_city             String?   @db.VarChar(255)
+  pickup_state            String?   @db.VarChar(255)
+  consignee_city          String?   @db.VarChar(255)
+  consignee_state         String?   @db.VarChar(255)
+  status                  String?   @db.VarChar(255)
+  paperwork_received_date DateTime? @db.Date
+  due_date                DateTime? @db.Date
+  net_due                 Decimal?  @db.Decimal(10, 2)
+  check_date              DateTime? @db.Date
+  check_number            String?   @db.VarChar(255)
+  amount_1                String?   @db.VarChar(255)
+  amount_2                String?   @db.VarChar(255)
+  amount_3                String?   @db.VarChar(255)
+  amount_4                String?   @db.VarChar(255)
+  amount_5                String?   @db.VarChar(255)
+  amount_6                String?   @db.VarChar(255)
+  amount_7                String?   @db.VarChar(255)
+  amount_8                String?   @db.VarChar(255)
+  amount_9                String?   @db.VarChar(255)
+  amount_10               String?   @db.VarChar(255)
+  amount_11               String?   @db.VarChar(255)
+  amount_12               String?   @db.VarChar(255)
+  reference_1             String?   @db.VarChar(255)
+  reference_2             String?   @db.VarChar(255)
+  reference_3             String?   @db.VarChar(255)
+  reference_4             String?   @db.VarChar(255)
+  reference_5             String?   @db.VarChar(255)
+  reference_6             String?   @db.VarChar(255)
+  reference_7             String?   @db.VarChar(255)
+  reference_8             String?   @db.VarChar(255)
+  reference_9             String?   @db.VarChar(255)
+  reference_10            String?   @db.VarChar(255)
+  reference_11            String?   @db.VarChar(255)
+  reference_12            String?   @db.VarChar(255)
+  hold                    String?   @db.VarChar(255)
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([payment_id, pro], map: "payments_payment_id_pro_index")
+}
+
+model phones_auth_records {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  access_token  String?
+  refresh_token String?
+  expires_in    Int?
+  valid_start   DateTime  @default(now()) @db.Timestamptz(6)
+  valid_end     DateTime? @db.Timestamptz(6)
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model plivo_forward_numbers {
+  phone_called String  @db.VarChar(255)
+  forward_to   String  @db.VarChar(255)
+  notes        String? @db.VarChar(255)
+
+  @@index([phone_called], map: "pk_plivo_fwd_num")
+  @@ignore
+}
+
+model query_counter {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  queried_id String   @db.VarChar(255)
+  load_id    String   @db.Uuid
+  id_type    String   @db.VarChar(255)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  loads      loads    @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "query_counter_load_id_foreign")
+
+  @@index([load_id])
+}
+
+model query_counter_load_post {
+  id            String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id       String     @db.Uuid
+  load_posts_id String     @db.Uuid
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  loads         loads      @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "query_counter_load_post_load_id_foreign")
+  load_posts    load_posts @relation(fields: [load_posts_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "query_counter_load_post_load_posts_id_foreign")
+}
+
+model query_counter_load_post_history {
+  id                    String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id               String             @db.Uuid
+  load_posts_history_id String             @db.Uuid
+  created_at            DateTime           @default(now()) @db.Timestamptz(6)
+  loads                 loads              @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "query_counter_load_post_history_load_id_foreign")
+  load_posts_history    load_posts_history @relation(fields: [load_posts_history_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "query_counter_load_post_history_load_posts_history_id_foreign")
+}
+
+model reaper_epicenters {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  city       String   @db.VarChar(255)
+  state      String   @db.VarChar(2)
+  lat        Decimal  @db.Decimal(10, 6)
+  lng        Decimal  @db.Decimal(10, 6)
+  active     Boolean  @default(true)
+  miles      Int      @default(300)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model reaper_processes {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  source        String    @db.VarChar(255)
+  run_date      DateTime  @db.Date
+  run_time      Int
+  process_start DateTime  @default(now()) @db.Timestamptz(6)
+  process_end   DateTime? @db.Timestamptz(6)
+  truck_count   Int       @default(0)
+  load_count    Int       @default(0)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model region_carrier_truck_stats {
+  id                 String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  carrier_id         String?           @db.Uuid
+  source             String
+  equipment_group_id String?           @db.Uuid
+  region_num         Int
+  run_date           DateTime          @db.Date
+  run_time           Int
+  available_date     DateTime          @db.Date
+  truck_count        Int               @default(0)
+  carrier_count      Int               @default(0)
+  carriers           carriers?         @relation(fields: [carrier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "region_carrier_truck_stats_carrier_id_foreign")
+  equipment_groups   equipment_groups? @relation(fields: [equipment_group_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "region_carrier_truck_stats_equipment_group_id_foreign")
+
+  @@unique([carrier_id, source, equipment_group_id, region_num, run_date, run_time, available_date], map: "region_carrier_truck_stats_carrier_id_source_equipment_group_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model region_truck_stats {
+  id                 String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  source             String
+  equipment_group_id String?           @db.Uuid
+  region_num         Int
+  run_date           DateTime          @db.Date
+  run_time           Int
+  available_date     DateTime          @db.Date
+  truck_count        Int               @default(0)
+  carrier_count      Int               @default(0)
+  equipment_groups   equipment_groups? @relation(fields: [equipment_group_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "region_truck_stats_equipment_group_id_foreign")
+
+  @@unique([source, equipment_group_id, region_num, run_date, run_time, available_date], map: "region_truck_stats_source_equipment_group_id_region_num_run_dat")
+}
+
+model roles {
+  id          String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String       @unique(map: "roles_name_unique") @db.VarChar(50)
+  description String?      @db.VarChar(255)
+  created_at  DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime     @default(now()) @db.Timestamptz(6)
+  user_roles  user_roles[]
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model salesforce_brokers {
+  name       String? @db.VarChar
+  owner_name String? @db.VarChar
+  source     String? @db.VarChar
+  updated_at String? @db.VarChar
+
+  @@ignore
+}
+
+model shipper_org_customers {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shipper_org_id String       @db.Uuid
+  customer_id    String       @unique(map: "shipper_org_customers_customer_id_unique") @db.Uuid
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
+  customers      customers    @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shipper_org_customers_customer_id_foreign")
+  shipper_orgs   shipper_orgs @relation(fields: [shipper_org_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shipper_org_customers_shipper_org_id_foreign")
+
+  @@unique([shipper_org_id, customer_id], map: "shipper_org_customers_shipper_org_id_customer_id_unique")
+  @@index([shipper_org_id, customer_id], map: "shipper_org_customers_shipper_org_id_customer_id_index")
+}
+
+model shipper_org_load_locations {
+  id                    String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shipper_org_id        String                @db.Uuid
+  load_id               String                @db.Uuid
+  location_id           String                @db.Uuid
+  in_time               DateTime?             @db.Timestamptz(6)
+  out_time              DateTime?             @db.Timestamptz(6)
+  loads                 loads                 @relation(fields: [load_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shipper_org_load_locations_load_id_foreign")
+  shipper_org_locations shipper_org_locations @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "shipper_org_load_locations_location_id_foreign")
+  shipper_orgs          shipper_orgs          @relation(fields: [shipper_org_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shipper_org_load_locations_shipper_org_id_foreign")
+
+  @@unique([shipper_org_id, load_id, location_id], map: "org_ld_loc_idx")
+}
+
+model shipper_orgs {
+  id                         String                       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                       String                       @db.VarChar(100)
+  active                     Boolean                      @default(true)
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  shipper_org_customers      shipper_org_customers[]
+  shipper_org_load_locations shipper_org_load_locations[]
+  shipper_org_locations      shipper_org_locations[]
+  shipper_users              shipper_users[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model shipper_users {
+  id                    String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shipper_org_id        String       @db.Uuid
+  email                 String       @unique(map: "shipper_users_email_unique") @db.VarChar(100)
+  password              String       @db.VarChar(100)
+  authentication_type   String       @default("EMAIL_PASSWORD")
+  first_name            String       @db.VarChar(100)
+  last_name             String       @db.VarChar(100)
+  phone                 String       @db.VarChar(20)
+  active                Boolean?     @default(true)
+  token_expiration      String?      @default("1d") @db.VarChar(5)
+  created_at            DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime     @default(now()) @db.Timestamptz(6)
+  force_reset_password  Boolean      @default(false)
+  reset_token           String?      @db.VarChar(20)
+  reset_token_expire_at DateTime?    @db.Timestamptz(6)
+  shipper_orgs          shipper_orgs @relation(fields: [shipper_org_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shipper_users_shipper_org_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tasks {
+  id                                     String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  assigned_to_user_id                    String?    @db.Uuid
+  assigned_by_user_id                    String?    @db.Uuid
+  task_type                              String
+  due_date                               DateTime?  @db.Date
+  title                                  String     @db.VarChar(255)
+  description                            String
+  user_notes                             String?
+  complete                               Boolean    @default(false)
+  created_at                             DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at                             DateTime   @default(now()) @db.Timestamptz(6)
+  load_id                                String?    @db.Uuid
+  carrier_id                             String?    @db.Uuid
+  customer_id                            String?    @db.Uuid
+  truck_id                               String?    @db.Uuid
+  priority                               String     @default("LOW")
+  users_tasks_assigned_by_user_idTousers users?     @relation("tasks_assigned_by_user_idTousers", fields: [assigned_by_user_id], references: [id], onUpdate: NoAction, map: "tasks_assigned_by_user_id_foreign")
+  users_tasks_assigned_to_user_idTousers users?     @relation("tasks_assigned_to_user_idTousers", fields: [assigned_to_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tasks_assigned_to_user_id_foreign")
+  carriers                               carriers?  @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tasks_carrier_id_foreign")
+  customers                              customers? @relation(fields: [customer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tasks_customer_id_foreign")
+  loads                                  loads?     @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tasks_load_id_foreign")
+
+  @@index([assigned_by_user_id, complete], map: "uncomplete_tasks_by_user_idx")
+  @@index([assigned_to_user_id, complete], map: "uncomplete_tasks_user_idx")
+}
+
+model team_users {
+  id                      String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  team_id                 String   @db.Uuid
+  user_id                 String   @db.Uuid
+  team_admin              Boolean  @default(false)
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @default(now()) @db.Timestamptz(6)
+  subscribe_to_bid_emails Boolean? @default(false)
+  teams                   teams    @relation(fields: [team_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "team_users_team_id_foreign")
+  users                   users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "team_users_user_id_foreign")
+
+  @@unique([team_id, user_id], map: "team_users_team_id_user_id_unique")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model teams {
+  id            String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name          String       @unique(map: "teams_name_unique") @db.VarChar(255)
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime     @default(now()) @db.Timestamptz(6)
+  team_type     String       @default("NONE")
+  dat_account   String?      @db.VarChar(255)
+  color         String?      @default("grey") @db.VarChar(50)
+  email         String?      @db.VarChar(50)
+  slack_channel String?      @db.VarChar(255)
+  customers     customers[]
+  loads         loads[]
+  team_users    team_users[]
+}
+
+model truck_schedules {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  monday     Boolean?  @default(false)
+  tuesday    Boolean?  @default(false)
+  wednesday  Boolean?  @default(false)
+  thursday   Boolean?  @default(false)
+  friday     Boolean?  @default(false)
+  saturday   Boolean?  @default(false)
+  sunday     Boolean?  @default(false)
+  end_date   DateTime? @db.Date
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  trucks     trucks[]
+}
+
+model truckstop_auth_records {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  access_token  String?
+  refresh_token String?
+  expires_in    Int?
+  valid_start   DateTime  @default(now()) @db.Timestamptz(6)
+  valid_end     DateTime? @db.Timestamptz(6)
+}
+
+model user_carriers {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String   @db.Uuid
+  carrier_id String   @db.Uuid
+  carriers   carriers @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_carriers_carrier_id_foreign")
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_carriers_user_id_foreign")
+
+  @@unique([carrier_id, user_id], map: "user_carriers_carrier_id_user_id_unique")
+}
+
+model user_roles {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id    String   @db.Uuid
+  role_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  roles      roles    @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_roles_role_id_foreign")
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_roles_user_id_foreign")
+
+  @@unique([user_id, role_id], map: "user_roles_user_id_role_id_unique")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                                                                String                          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  first_name                                                        String                          @db.VarChar(50)
+  last_name                                                         String                          @db.VarChar(50)
+  email                                                             String                          @unique(map: "users_email_unique") @db.VarChar(100)
+  cell_phone                                                        String?                         @db.VarChar(255)
+  active                                                            Boolean                         @default(true)
+  created_at                                                        DateTime                        @default(now()) @db.Timestamptz(6)
+  updated_at                                                        DateTime                        @default(now()) @db.Timestamptz(6)
+  portal_user_id                                                    Int?
+  aljex_username                                                    String?                         @db.VarChar(255)
+  aljex_salesrep_id                                                 String?                         @db.VarChar(255)
+  device_1_id                                                       String?                         @db.VarChar(255)
+  device_2_id                                                       String?                         @db.VarChar(255)
+  phone_service_user_id                                             Int?
+  rep_type                                                          String?                         @default("CARRIER")
+  api_keys                                                          api_keys[]
+  bids                                                              bids[]
+  bounced_loads                                                     bounced_loads[]
+  carrier_notes                                                     carrier_notes[]
+  carrier_rep_assignment_tags                                       carrier_rep_assignment_tags[]
+  carrier_rep_assignments                                           carrier_rep_assignments[]
+  carriers_carriers_carrier_rep_idTousers                           carriers[]                      @relation("carriers_carrier_rep_idTousers")
+  carriers_carriers_lead_owner_carrier_rep_idTousers                carriers[]                      @relation("carriers_lead_owner_carrier_rep_idTousers")
+  customer_notes                                                    customer_notes[]
+  customer_rep_assignments                                          customer_rep_assignments[]
+  customer_rep_assignments_tags                                     customer_rep_assignments_tags[]
+  customers_customers_carrier_manager_idTousers                     customers[]                     @relation("customers_carrier_manager_idTousers")
+  customers_customers_customer_rep_idTousers                        customers[]                     @relation("customers_customer_rep_idTousers")
+  late_load_notes                                                   late_load_notes[]
+  load_history_load_history_booking_rep_idTousers                   load_history[]                  @relation("load_history_booking_rep_idTousers")
+  load_history_load_history_carrier_rep_idTousers                   load_history[]                  @relation("load_history_carrier_rep_idTousers")
+  load_history_complete_load_history_complete_booking_rep_idTousers load_history_complete[]         @relation("load_history_complete_booking_rep_idTousers")
+  load_history_complete_load_history_complete_carrier_rep_idTousers load_history_complete[]         @relation("load_history_complete_carrier_rep_idTousers")
+  loads_loads_assigned_rep_idTousers                                loads[]                         @relation("loads_assigned_rep_idTousers")
+  loads_loads_carrier_rep_idTousers                                 loads[]                         @relation("loads_carrier_rep_idTousers")
+  loads_loads_sales_rep_idTousers                                   loads[]                         @relation("loads_sales_rep_idTousers")
+  notes                                                             notes[]
+  notifications                                                     notifications[]
+  tasks_tasks_assigned_by_user_idTousers                            tasks[]                         @relation("tasks_assigned_by_user_idTousers")
+  tasks_tasks_assigned_to_user_idTousers                            tasks[]                         @relation("tasks_assigned_to_user_idTousers")
+  team_users                                                        team_users[]
+  trucks_trucks_actual_user_idTousers                               trucks[]                        @relation("trucks_actual_user_idTousers")
+  trucks_trucks_user_idTousers                                      trucks[]                        @relation("trucks_user_idTousers")
+  user_carriers                                                     user_carriers[]
+  user_roles                                                        user_roles[]
+}
+
+model zipcodes {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  zipcode       String?  @db.VarChar(16)
+  zipcode_type  String?  @db.VarChar(16)
+  city          String?  @db.VarChar(255)
+  state         String?  @db.VarChar(8)
+  location_type String?  @db.VarChar(16)
+  lat           Decimal? @db.Decimal(10, 6)
+  lng           Decimal? @db.Decimal(10, 6)
+  country       String?  @db.VarChar(16)
+  location_text String?  @db.VarChar(255)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model carriers {
+  id                                              String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  mc                                              String                        @unique(map: "carriers_mc_unique") @db.VarChar(20)
+  dot                                             String?                       @db.VarChar(20)
+  aljex_account_number                            String?                       @db.VarChar(20)
+  name                                            String                        @db.VarChar(255)
+  legal_name                                      String                        @db.VarChar(255)
+  carrier                                         Boolean                       @default(true)
+  active                                          Boolean?                      @default(true)
+  overall_rating                                  Decimal?                      @db.Decimal(2, 1)
+  always_home                                     Boolean?                      @default(true)
+  pay_to_name                                     String?                       @db.VarChar(255)
+  created_at                                      DateTime                      @default(now()) @db.Timestamptz(6)
+  updated_at                                      DateTime                      @default(now()) @db.Timestamptz(6)
+  carrier_rep_id                                  String?                       @db.Uuid
+  address_line1                                   String?                       @db.VarChar(255)
+  address_line2                                   String?                       @db.VarChar(255)
+  city                                            String?                       @db.VarChar(255)
+  state                                           String?                       @db.VarChar(2)
+  zip                                             String?                       @db.VarChar(10)
+  country                                         String                        @default("US") @db.VarChar(255)
+  lat                                             Decimal?                      @db.Decimal(10, 6)
+  lng                                             Decimal?                      @db.Decimal(10, 6)
+  geography                                       Unsupported("geography")?
+  domain                                          String?                       @db.VarChar(255)
+  default_equipment                               String?                       @db.VarChar(255)
+  c411_trucks                                     Int?
+  c411_rating                                     String?                       @db.VarChar(255)
+  c411_rate_date                                  DateTime?                     @db.Date
+  lead_owner_carrier_rep_id                       String?                       @db.Uuid
+  lead_created_at                                 DateTime?                     @db.Date
+  dat_power_units                                 Int?
+  dat_fleet_refreshed_at                          DateTime?                     @db.Timestamptz(6)
+  main_phone                                      String?                       @db.VarChar(50)
+  carrier_type                                    String?                       @default("NONE")
+  hazmat                                          Boolean?
+  lift_gate                                       Boolean?
+  teams                                           Boolean?
+  twic                                            Boolean?
+  driver_assist                                   Boolean?
+  oversize                                        Boolean?
+  cross_docking                                   Boolean?
+  cold_storage                                    Boolean?
+  intrastate                                      Boolean?
+  percent_profit                                  Decimal?                      @db.Decimal(12, 3)
+  email1                                          String?                       @db.VarChar(50)
+  email2                                          String?                       @db.VarChar(50)
+  bids                                            bids[]
+  bounced_loads                                   bounced_loads[]
+  carrier_contacts                                carrier_contacts[]
+  carrier_fleet_trucks                            carrier_fleet_trucks[]
+  carrier_insurance_details                       carrier_insurance_details[]
+  carrier_locations                               carrier_locations[]
+  carrier_notes                                   carrier_notes[]
+  carrier_rep_assignments                         carrier_rep_assignments[]
+  users_carriers_carrier_rep_idTousers            users?                        @relation("carriers_carrier_rep_idTousers", fields: [carrier_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "carriers_carrier_rep_id_foreign")
+  users_carriers_lead_owner_carrier_rep_idTousers users?                        @relation("carriers_lead_owner_carrier_rep_idTousers", fields: [lead_owner_carrier_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "carriers_lead_owner_carrier_rep_id_foreign")
+  customer_restricted_carrier                     customer_restricted_carrier[]
+  load_history                                    load_history[]
+  load_history_complete                           load_history_complete[]
+  loads                                           loads[]
+  region_carrier_truck_stats                      region_carrier_truck_stats[]
+  tasks                                           tasks[]
+  trucks                                          trucks[]
+  user_carriers                                   user_carriers[]
+
+  @@index([aljex_account_number], map: "carriers_aljex_account_number_index")
+  @@index([dot], map: "carriers_dot_index")
+  @@index([mc, active], map: "carriers_mc_active_index")
+}
+
+model customers {
+  id                                        String                        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                                      String                        @db.VarChar(255)
+  active                                    Boolean?                      @default(true)
+  aljex_account_number                      String?                       @db.VarChar(20)
+  customer_type                             String?                       @db.VarChar(255)
+  credit_limit                              Decimal?                      @db.Decimal(10, 2)
+  total_exposure                            Decimal?                      @db.Decimal(10, 2)
+  created_at                                DateTime                      @default(now()) @db.Timestamptz(6)
+  updated_at                                DateTime                      @default(now()) @db.Timestamptz(6)
+  can_post                                  Boolean                       @default(true)
+  aljex_sales_rep_id                        String?                       @db.VarChar(255)
+  revenue_type                              String?                       @db.VarChar(255)
+  address_line1                             String?                       @db.VarChar(255)
+  address_line2                             String?                       @db.VarChar(255)
+  city                                      String?                       @db.VarChar(255)
+  state                                     String?                       @db.VarChar(2)
+  zip                                       String?                       @db.VarChar(10)
+  country                                   String?                       @db.VarChar(255)
+  lat                                       Decimal?                      @db.Decimal(10, 6)
+  lng                                       Decimal?                      @db.Decimal(10, 6)
+  geography                                 Unsupported("geography")?
+  overall_rating                            Decimal?                      @db.Decimal(2, 1)
+  customer_rep_id                           String?                       @db.Uuid
+  carrier_manager_id                        String?                       @db.Uuid
+  broker_team_id                            String?                       @db.Uuid
+  broker_team_override                      Json?
+  customer_contacts                         customer_contacts[]
+  customer_locations                        customer_locations[]
+  customer_lumpers                          customer_lumpers[]
+  customer_notes                            customer_notes[]
+  customer_rep_assignments                  customer_rep_assignments[]
+  customer_restricted_carrier               customer_restricted_carrier[]
+  customer_shipping                         customer_shipping[]
+  teams                                     teams?                        @relation(fields: [broker_team_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_broker_team_id_foreign")
+  users_customers_carrier_manager_idTousers users?                        @relation("customers_carrier_manager_idTousers", fields: [carrier_manager_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_carrier_manager_id_foreign")
+  users_customers_customer_rep_idTousers    users?                        @relation("customers_customer_rep_idTousers", fields: [customer_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "customers_customer_rep_id_foreign")
+  load_stops                                load_stops[]
+  loads                                     loads[]
+  shipper_org_customers                     shipper_org_customers?
+  tasks                                     tasks[]
+
+  @@index([aljex_account_number], map: "customers_aljex_account_number_index")
+  @@index([broker_team_id], map: "customers_broker_team_id_index")
+}
+
+model external_loads {
+  id                     String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  source                 String                    @db.VarChar(255)
+  ref                    String                    @db.VarChar(12)
+  active                 Boolean                   @default(true)
+  posting_company        String                    @db.VarChar(255)
+  equipment_group_id     String                    @db.Uuid
+  team                   Boolean                   @default(false)
+  hazmat                 Boolean                   @default(false)
+  ltl                    Boolean                   @default(false)
+  stops                  Int                       @default(1)
+  pickup_date            DateTime                  @db.Date
+  origin_city            String                    @db.VarChar(255)
+  origin_state           String                    @db.VarChar(2)
+  origin_lat             Decimal                   @db.Decimal(10, 6)
+  origin_lng             Decimal                   @db.Decimal(10, 6)
+  origin_geography       Unsupported("geography")?
+  origin_region_num      Int?
+  destination_city       String                    @db.VarChar(255)
+  destination_state      String                    @db.VarChar(2)
+  destination_lat        Decimal                   @db.Decimal(10, 6)
+  destination_lng        Decimal                   @db.Decimal(10, 6)
+  destination_geography  Unsupported("geography")?
+  destination_region_num Int?
+  miles                  Decimal?                  @db.Decimal(10, 2)
+  rate                   Decimal?                  @db.Decimal(10, 2)
+  created_at             DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                  @default(now()) @db.Timestamptz(6)
+  equipment_groups       equipment_groups          @relation(fields: [equipment_group_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "external_loads_equipment_group_id_foreign")
+
+  @@unique([source, ref], map: "external_loads_source_ref_unique")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model load_stops {
+  id                   String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  load_id              String                    @db.Uuid
+  stop_order           Int
+  stop_type            String?
+  location_id          String?                   @db.Uuid
+  appt_date            DateTime?                 @db.Date
+  appt_hours           String?                   @db.VarChar(255)
+  notes                String?                   @db.VarChar(255)
+  created_at           DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime                  @default(now()) @db.Timestamptz(6)
+  address_line1        String?                   @db.VarChar(255)
+  address_line2        String?                   @db.VarChar(255)
+  city                 String?                   @db.VarChar(255)
+  state                String?                   @db.VarChar(2)
+  zip                  String?                   @db.VarChar(10)
+  country              String?                   @default("US") @db.VarChar(255)
+  lat                  Decimal?                  @db.Decimal(10, 6)
+  lng                  Decimal?                  @db.Decimal(10, 6)
+  geography            Unsupported("geography")?
+  name                 String?                   @db.VarChar(255)
+  region_num           Int?
+  miles_to_next_stop   Decimal?                  @db.Decimal(10, 2)
+  miles_from_last_stop Decimal?                  @db.Decimal(10, 2)
+  tolls                Float?                    @default(0) @db.Real
+  customer_id          String?                   @db.Uuid
+  customer_lumper_fees Decimal                   @default(0) @db.Decimal(12, 2)
+  carrier_lumper_fees  Decimal                   @default(0) @db.Decimal(12, 2)
+  arrive_date          DateTime?                 @db.Date
+  arrive_time          String?                   @db.VarChar(10)
+  depart_date          DateTime?                 @db.Date
+  depart_time          String?                   @db.VarChar(10)
+  late                 Boolean?
+  load_unload_minutes  Int?
+  late_minutes         Int                       @default(0)
+  customers            customers?                @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "load_stops_customer_id_foreign")
+  loads                loads                     @relation(fields: [load_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "load_stops_load_id_foreign")
+
+  @@unique([load_id, stop_order], map: "load_stops_load_id_stop_order_unique")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model loads {
+  id                                 String                            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pro                                String                            @unique(map: "loads_pro_unique") @db.VarChar(20)
+  description                        String?                           @db.VarChar(255)
+  spot_load                          Boolean                           @default(false)
+  customer_id                        String                            @db.Uuid
+  carrier_id                         String?                           @db.Uuid
+  equipment_type_id                  String                            @db.Uuid
+  sales_rep_id                       String?                           @db.Uuid
+  carrier_rep_id                     String?                           @db.Uuid
+  ref_num                            String?                           @db.VarChar(255)
+  status                             String?
+  invoice_total                      Decimal?                          @db.Decimal(12, 2)
+  carrier_total_rate                 Decimal?                          @db.Decimal(12, 2)
+  origin_city                        String?                           @db.VarChar(255)
+  origin_state                       String?                           @db.VarChar(2)
+  pickup_date                        DateTime?                         @db.Date
+  pickup_hours                       String?                           @db.VarChar(255)
+  destination_city                   String?                           @db.VarChar(255)
+  destination_state                  String?                           @db.VarChar(2)
+  delivery_date                      DateTime?                         @db.Date
+  delivery_hours                     String?                           @db.VarChar(255)
+  pickup_count                       Int                               @default(0)
+  delivery_count                     Int                               @default(0)
+  miles                              Int?
+  pieces                             Int?
+  weight                             Int?
+  temperature                        Int?
+  created_at                         DateTime                          @default(now()) @db.Timestamptz(6)
+  updated_at                         DateTime                          @default(now()) @db.Timestamptz(6)
+  origin_lat                         Decimal?                          @db.Decimal(10, 6)
+  origin_lng                         Decimal?                          @db.Decimal(10, 6)
+  destination_lat                    Decimal?                          @db.Decimal(10, 6)
+  destination_lng                    Decimal?                          @db.Decimal(10, 6)
+  origin_geography                   Unsupported("geography")?
+  destination_geography              Unsupported("geography")?
+  origin_region_num                  Int?
+  destination_region_num             Int?
+  ltl                                Boolean?                          @default(false)
+  assigned_rep_id                    String?                           @db.Uuid
+  priority_load                      Boolean                           @default(false)
+  notes                              String?                           @default("")
+  roll_date                          DateTime?                         @db.Date
+  tolls_total                        Float?                            @default(0) @db.Real
+  age_timestamp                      DateTime?                         @default(now()) @db.Timestamptz(6)
+  carrier_rate                       Decimal?                          @db.Decimal(12, 2)
+  customer_rate                      Decimal?                          @db.Decimal(12, 2)
+  booking_rep_id                     String?                           @db.Uuid
+  owned_at_delivered                 Boolean?
+  opportunity_load                   Boolean?                          @default(false)
+  load_late                          Boolean?                          @default(false)
+  carrier_lh                         Decimal?                          @db.Decimal(12, 2)
+  customer_lh                        Decimal?                          @db.Decimal(12, 2)
+  origin_zip                         String?                           @db.VarChar(255)
+  destination_zip                    String?                           @db.VarChar(255)
+  truck_number                       String?                           @db.VarChar(50)
+  trailer_number                     String?                           @db.VarChar(50)
+  driver_cell                        String?                           @db.VarChar(30)
+  dispatched_city                    String?                           @db.VarChar(50)
+  dispatched_state                   String?                           @db.VarChar(2)
+  dispatched_date                    DateTime?                         @db.Date
+  dispatched_time                    String?                           @db.VarChar(10)
+  arrive_pickup_date                 DateTime?                         @db.Date
+  arrive_pickup_time                 String?                           @db.VarChar(10)
+  arrive_consignee_date              DateTime?                         @db.Date
+  arrive_consignee_time              String?                           @db.VarChar(10)
+  pickup_reference_number            String?                           @db.VarChar(50)
+  consignee_reference_number         String?                           @db.VarChar(50)
+  driver_id                          String?                           @db.Uuid
+  carrier_ref_num                    String?                           @db.VarChar(50)
+  broker_team_id                     String?                           @db.Uuid
+  freeze_driver                      Boolean                           @default(false)
+  spend                              Decimal?                          @db.Decimal
+  bids                               bids[]
+  bounced_loads                      bounced_loads[]
+  check_calls                        check_calls[]
+  late_load_notes                    late_load_notes[]
+  load_history                       load_history[]
+  load_history_complete              load_history_complete[]
+  load_posts                         load_posts[]
+  load_posts_history                 load_posts_history[]
+  load_quality_threshold             load_quality_threshold?
+  load_rates                         load_rates?
+  load_service_scorecards            load_service_scorecards[]
+  load_stops                         load_stops[]
+  load_tracking                      load_tracking?
+  load_truck_matches_old             load_truck_matches_old[]
+  users_loads_assigned_rep_idTousers users?                            @relation("loads_assigned_rep_idTousers", fields: [assigned_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "loads_assigned_rep_id_foreign")
+  teams                              teams?                            @relation(fields: [broker_team_id], references: [id], onUpdate: NoAction, map: "loads_broker_team_id_foreign")
+  carriers                           carriers?                         @relation(fields: [carrier_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "loads_carrier_id_foreign")
+  users_loads_carrier_rep_idTousers  users?                            @relation("loads_carrier_rep_idTousers", fields: [carrier_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "loads_carrier_rep_id_foreign")
+  customers                          customers                         @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "loads_customer_id_foreign")
+  carrier_contacts                   carrier_contacts?                 @relation(fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "loads_driver_id_foreign")
+  equipment_types                    equipment_types                   @relation(fields: [equipment_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "loads_equipment_type_id_foreign")
+  users_loads_sales_rep_idTousers    users?                            @relation("loads_sales_rep_idTousers", fields: [sales_rep_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "loads_sales_rep_id_foreign")
+  query_counter                      query_counter[]
+  query_counter_load_post            query_counter_load_post[]
+  query_counter_load_post_history    query_counter_load_post_history[]
+  shipper_org_load_locations         shipper_org_load_locations[]
+  tasks                              tasks[]
+
+  @@index([carrier_id], map: "loads_carrier_id_index")
+  @@index([destination_geography], map: "loads_destination_gix", type: Gist)
+  @@index([driver_id], map: "loads_driver_id_index")
+  @@index([origin_geography], map: "loads_origin_gix", type: Gist)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model locations {
+  id                 String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  address_line1      String?                   @db.VarChar(255)
+  address_line2      String?                   @db.VarChar(255)
+  city               String                    @db.VarChar(255)
+  state              String                    @db.VarChar(2)
+  zip                String?                   @db.VarChar(10)
+  country            String                    @default("US") @db.VarChar(255)
+  lat                Decimal?                  @db.Decimal(10, 6)
+  lng                Decimal?                  @db.Decimal(10, 6)
+  local_timezone     String?                   @db.VarChar(30)
+  created_at         DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime                  @default(now()) @db.Timestamptz(6)
+  valid              Boolean?
+  geography          Unsupported("geography")?
+  carrier_locations  carrier_locations[]
+  customer_locations customer_locations[]
+
+  @@unique([address_line1, address_line2, city, state, zip, country], map: "unique_address_block")
+  @@index([geography], map: "locations_geography_gix", type: Gist)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model reaper_trucks {
+  truck_id                   String                    @db.VarChar(12)
+  source                     String                    @default("DAT")
+  carrier_id                 String?                   @db.Uuid
+  mc                         String?                   @db.VarChar(255)
+  dot                        String?                   @db.VarChar(255)
+  carrier_name               String?                   @db.VarChar(255)
+  equipment_type_id          String?                   @db.Uuid
+  equipment_type_description String?                   @db.VarChar(255)
+  team                       Boolean                   @default(false)
+  available_date             DateTime                  @default(now()) @db.Date
+  truck_count                Int                       @default(1)
+  phone_number               String?                   @db.VarChar(255)
+  email                      String?                   @db.VarChar(255)
+  city                       String?                   @db.VarChar(255)
+  state                      String?                   @db.VarChar(2)
+  lat                        Decimal?                  @db.Decimal(10, 6)
+  lng                        Decimal?                  @db.Decimal(10, 6)
+  region_num                 Int?
+  created_at                 DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                  @default(now()) @db.Timestamptz(6)
+  destination                String?                   @db.VarChar(255)
+  notes                      String?
+  destination_lat            Decimal?                  @db.Decimal(10, 6)
+  destination_lng            Decimal?                  @db.Decimal(10, 6)
+  destination_geography      Unsupported("geography")?
+
+  @@unique([truck_id, source], map: "reaper_trucks_truck_id_source_unique")
+  @@index([source], map: "reaper_trucks_source_index")
+}
+
+model regions {
+  id         String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  region_num Int                       @unique(map: "regions_region_num_unique")
+  name       String                    @db.VarChar(255)
+  geography  Unsupported("geography")?
+  created_at DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime                  @default(now()) @db.Timestamptz(6)
+
+  @@index([region_num], map: "regions_region_num_index")
+}
+
+model shipper_org_locations {
+  id                         String                       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  shipper_org_id             String                       @db.Uuid
+  name                       String                       @db.VarChar(50)
+  address                    String                       @db.VarChar(100)
+  city                       String                       @db.VarChar(255)
+  state                      String                       @db.VarChar(2)
+  zip                        String                       @db.VarChar(10)
+  lat                        Decimal                      @db.Decimal(10, 6)
+  lng                        Decimal                      @db.Decimal(10, 6)
+  loc_geography              Unsupported("geography")?
+  geo_fence                  Json?
+  geo_fence_geography        Unsupported("geography")?
+  timezone                   String?                      @db.VarChar(50)
+  active                     Boolean?                     @default(true)
+  shipper_org_load_locations shipper_org_load_locations[]
+  shipper_orgs               shipper_orgs                 @relation(fields: [shipper_org_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shipper_org_locations_shipper_org_id_foreign")
+
+  @@index([shipper_org_id, name], map: "name_org_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model trucks {
+  id                                 String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  source                             String                    @default("OTR")
+  ref                                String                    @db.VarChar(12)
+  carrier_id                         String                    @db.Uuid
+  equipment_type_id                  String                    @db.Uuid
+  team                               Boolean                   @default(false)
+  available_date                     DateTime                  @default(now()) @db.Date
+  truck_count                        Int                       @default(1)
+  active                             Boolean                   @default(true)
+  phone_number                       String?                   @db.VarChar(255)
+  email                              String?                   @db.VarChar(255)
+  city                               String?                   @db.VarChar(255)
+  state                              String?                   @db.VarChar(2)
+  lat                                Decimal?                  @db.Decimal(10, 6)
+  lng                                Decimal?                  @db.Decimal(10, 6)
+  geography                          Unsupported("geography")?
+  created_at                         DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                         DateTime                  @default(now()) @db.Timestamptz(6)
+  region_num                         Int?
+  destination                        String?                   @db.VarChar(255)
+  notes                              String?                   @db.VarChar(255)
+  user_id                            String                    @db.Uuid
+  destination_lat                    Decimal?                  @db.Decimal(10, 6)
+  destination_lng                    Decimal?                  @db.Decimal(10, 6)
+  destination_geography              Unsupported("geography")?
+  truck_schedule_id                  String?                   @db.Uuid
+  actual_user_id                     String?                   @db.Uuid
+  source_email                       String?                   @db.VarChar(255)
+  load_id                            String?                   @db.Uuid
+  load_truck_matches_old             load_truck_matches_old[]
+  users_trucks_actual_user_idTousers users?                    @relation("trucks_actual_user_idTousers", fields: [actual_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trucks_actual_user_id_foreign")
+  carriers                           carriers                  @relation(fields: [carrier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "trucks_carrier_id_foreign")
+  equipment_types                    equipment_types           @relation(fields: [equipment_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trucks_equipment_type_id_foreign")
+  truck_schedules                    truck_schedules?          @relation(fields: [truck_schedule_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trucks_truck_schedule_id_foreign")
+  users_trucks_user_idTousers        users                     @relation("trucks_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "trucks_user_id_foreign")
+
+  @@unique([source, ref], map: "trucks_source_ref_unique")
+  @@index([carrier_id], map: "trucks_carrier_id_index")
+  @@index([geography], map: "trucks_geography_gix", type: Gist)
+  @@index([source, active], map: "trucks_source_active_index")
+}
