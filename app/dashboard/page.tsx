@@ -5,7 +5,15 @@ import Image from "next/image";
 export default function Page() {
 
     useEffect(() => {
-      fetch('/api/loads')
+      fetch('/api/loads/loads')
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error('Error:', error));
+        fetch('/api/trucks/trucks')
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error('Error:', error));
+        fetch('/api/bids/bids')
         .then(response => response.json())
         .then(data => console.log(data))
         .catch(error => console.error('Error:', error));
